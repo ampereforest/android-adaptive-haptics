@@ -36,13 +36,18 @@ Conversely, blindly NOP-ing `setGain` eliminates `rc=-16` **but breaks the syste
    - Reset the pre-upload float back to `-1.0f` after `perform()` consumes it so subsequent unscaled calls fall back cleanly to `EffectStrength` (`LIGHT`/`MEDIUM`/`STRONG`).
 3. **Dynamic Range Calibration:** Map normalized amplitude `s0` `[0.05..1.0]` to `ff_effect.u.periodic.magnitude = (int16_t)(s0 * 29696.0f + 3071.0f)` (`[4556..32767]` = `13.9%..100%` Vmax) instead of narrow OEM defaults like `[8191..32767]`.
 
-### 2. Rapid Keyboard Typing Latency & Dropped Keystrokes
+### 2. Rapid Keyboard Typing Latency, Dropped Keystrokes & Cross-OEM RTP Onset Cutoff (0-Haptics Bug!)
 
-**Root Cause:**
+**Root Cause A (Cooldown Stall):**
 Many OEM `qcom-hv-haptics` / `vibratorfeature` HALs read a `slide_effect_protect_time` cooldown (often `30–60ms`) and call `usleep()` on the binder thread when consecutive `perform()` calls arrive faster than the cooldown window. During fast typing (10–20 keys/sec = `50–100ms` inter-key intervals, bursts at `30–40ms`), this stalls the vibration thread and drops keystrokes.
 
+**Root Cause B (Cross-OEM RTP Leading-Silence / Duration Cutoff -> Silent Keystrokes!):**
+When porting one OEM's framework (e.g., ColorOS `/my_product/etc/vibrator/effect_waveform.xml`) onto another OEM's hardware RTP library (e.g., Xiaomi `/odm/firmware/*_P_RTP.bin` at `24 kHz` = `24 bytes/ms`), the framework's `VibrationThread` sleeps strictly for its XML `mDuration` (e.g., **`20ms`** for keyboard `waveformId=111`, **`35ms`** for button `waveformId=1`, **`45ms`** for switch `waveformId=2`) and then immediately calls `IVibrator::off()`.
+If a mapped target RTP waveform has **leading silence or a slow attack longer than `mDuration`** (for example, Xiaomi `180_signalKeyHigh_P_RTP.bin` is `147.1ms` long with **25.4ms of leading silence** and peak at `32.6ms`, and `187_signalSwitch_P_RTP.bin` peaks at `73.5ms`), `VibrationThread` cancels playback at `20ms` **before the actuator even receives energy**, resulting in **0% physical vibration** despite clean HAL logs!
+
 **Fix:**
-Force `slide_effect_protect_time = 0` at HAL initialization so back-to-back short transient waveforms upload and trigger immediately with zero artificial sleep.
+1. Force `slide_effect_protect_time = 0` at HAL initialization so back-to-back short transient waveforms upload and trigger immediately with zero artificial sleep.
+2. **Audit every mapped target RTP binary's 24 kHz PCM envelope (`bytes / 24.0 ms`):** verify `onset_ms <= 2.1 ms`, `peak_ms < mDuration`, and high initial RMS (`R15 >= 40`). Map `20ms` keyboard strokes (`110/111/112`) and short UI taps (`1/2/7/13/14/105`) strictly to instant-onset, short-envelope hardware RTPs (e.g., `181_signalKeyUnit` `13.0ms / 0.0ms onset`, `178_signalClockUnit` `12.2ms / 0.0ms onset`, `4_pop` `15.8ms / 0.6ms onset`, `166_feedbackNeutral` `14.3ms`, `88_launcherIconSelection` `15.2ms`, `201_BoundaryBounce` `13.3ms`). Apply the same instant-onset audit to RichTap HE 1.0/2.0 event targets so rapid beats never clip silent.
 
 ### 3. AIDL Vibrator Proxy Pitfalls: Dropped Extensions & Service Hijacking
 

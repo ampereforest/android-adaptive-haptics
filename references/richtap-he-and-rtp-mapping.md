@@ -30,46 +30,46 @@ Used by ColorOS/Oplus `IOplusVibrator::performHe(int looper, int interval, int a
 
 ---
 
-## 2. Adaptive Frequency/Intensity -> Hardware RTP Texture Matrix
+## 2. Adaptive Frequency/Intensity -> Hardware RTP Texture Matrix (24 kHz Instant-Onset Verified)
 
-When translating RichTap HE events onto a device with rich pre-baked hardware RTP waveforms (such as Xiaomi `/odm/firmware/*_P_RTP.bin` on `qcom-hv-haptics`), route each event by `(type, frequency, duration, intensity)` and apply `eventAmp = clamp((globalAmp / 255.0f) * (event.intensity / 100.0f), 0.08f, 1.0f)` **before** `perform()`:
+When translating RichTap HE events onto a device with pre-baked hardware RTP waveforms (such as Xiaomi `/odm/firmware/*_P_RTP.bin` on `qcom-hv-haptics` at `24 kHz` = `24 bytes/ms`), **audit every target binary's PCM envelope** to verify **`onset_ms <= 2.1 ms`** so rapid HE beats or short framework `mDuration` windows never clip silent. Route each event by `(type, frequency, duration, intensity)` and apply `eventAmp = clamp((globalAmp / 255.0f) * (event.intensity / 100.0f), 0.08f, 1.0f)` **before** `perform()`:
 
-| Event Type | Frequency / Duration Band | Intensity | Tactile Material Character | Example Hardware RTP Target |
+| Event Type | Frequency / Duration Band | Intensity | Tactile Material Character | Verified Instant-Onset RTP Target (`Onset <= 2.1ms`) |
 | :--- | :--- | :--- | :--- | :--- |
-| Transient (`0x1001`) | `freq >= 78` | `< 45` | Ultra-light crisp micro-tick | `181_signalKeyUnit` |
-| Transient (`0x1001`) | `freq >= 78` | `>= 45` | Bright crystalline tap | `56_Crystal` |
-| Transient (`0x1001`) | `60 <= freq <= 77` | `< 70` | Crisp tactile click | `180_signalKeyHigh` |
-| Transient (`0x1001`) | `60 <= freq <= 77` | `>= 70` | Metallic crisp clank | `55_Clank` |
-| Transient (`0x1001`) | `42 <= freq <= 59` | `< 65` | Organic bubble pop | `51_Bubble` |
-| Transient (`0x1001`) | `42 <= freq <= 59` | `>= 65` | Punchy pop | `4_pop` |
-| Transient (`0x1001`) | `25 <= freq <= 41` | `< 65` | Mechanical switch detent | `187_signalSwitch` |
-| Transient (`0x1001`) | `25 <= freq <= 41` | `>= 65` | Elastic boundary knock | `201_BoundaryBounce` |
-| Transient (`0x1001`) | `freq < 25` | `< 75` | Deep low-frequency thud | `3_thud` |
-| Transient (`0x1001`) | `freq < 25` | `>= 75` | Heavy bass impact | `5_heavyClick` |
-| Continuous (`0x1000`) | `dur >= 180ms`, `freq >= 60` | any | Elastic resonant spring | `70_Spring` |
-| Continuous (`0x1000`) | `dur >= 180ms`, `35..59` | any | Smooth gradual swell | `57_FadeIn` |
-| Continuous (`0x1000`) | `dur >= 180ms`, `freq < 35` | any | Deep directional swoosh | `71_Swoosh` |
-| Continuous (`0x1000`) | `70..179ms`, `freq >= 60` | any | Vibrant shimmer burst | `53_Burst` |
-| Continuous (`0x1000`) | `70..179ms`, `freq < 60` | any | Textured sliding damping | `170_slidingDamping` |
-| Continuous (`0x1000`) | `dur < 70ms` | any | Short detent / bottom-out | `186_signalSeekbar` / `202_BoundaryBottom` |
+| Transient (`0x1001`) | `freq >= 78` | `< 45` | Ultra-light crisp micro-tick | `178_signalClockUnit` (`12.2ms`, `0.0ms` onset) |
+| Transient (`0x1001`) | `freq >= 78` | `>= 45` | Crisp bright mechanical click | `181_signalKeyUnit` (`13.0ms`, `0.0ms` onset) |
+| Transient (`0x1001`) | `60 <= freq <= 77` | `< 70` | Elastic crisp bounce | `201_BoundaryBounce` (`13.3ms`, `0.6ms` onset) |
+| Transient (`0x1001`) | `60 <= freq <= 77` | `>= 70` | Punchy bright pop (`412Hz`) | `4_pop` (`15.8ms`, `0.6ms` onset) |
+| Transient (`0x1001`) | `42 <= freq <= 59` | `< 65` | Clean neutral tap (`314Hz`) | `166_feedbackNeutral` (`14.3ms`, `2.0ms` onset) |
+| Transient (`0x1001`) | `42 <= freq <= 59` | `>= 65` | Mid-pitch crisp tick (`226Hz`) | `2_tick` (`22.2ms`, `0.6ms` onset) |
+| Transient (`0x1001`) | `25 <= freq <= 41` | `< 65` | Textured tab click | `188_signalTab` (`25.1ms`, `1.0ms` onset) |
+| Transient (`0x1001`) | `25 <= freq <= 41` | `>= 65` | Directional release snap | `163_GestureBackRelease` (`23.3ms`, `2.1ms` onset) |
+| Transient (`0x1001`) | `freq < 25` | `< 75` | Deep low-freq toggle (`98Hz`) | `88_launcherIconSelection` (`15.2ms`, `2.0ms` onset) |
+| Transient (`0x1001`) | `freq < 25` | `>= 75` | Heavy boundary impact | `202_BoundaryBottom` (`22.5ms`, `1.0ms` onset) |
+| Continuous (`0x1000`) | `dur >= 180ms`, `freq >= 60` | any | Rich resonant chime sweep | `171_todoAlldone` (`444ms`, `2.1ms` onset) |
+| Continuous (`0x1000`) | `dur >= 180ms`, `35..59` | any | Firm sustained alert | `164_alert` (`170ms`, `2.1ms` onset) |
+| Continuous (`0x1000`) | `dur >= 180ms`, `freq < 35` | any | Deep positive swell | `205_SuperPositive` (`436ms`, `0.4ms` onset) |
+| Continuous (`0x1000`) | `70..179ms`, `freq >= 60` | any | Authoritative textured hold | `173_signalButtonHighlight` (`99ms`, `0.0ms` onset) |
+| Continuous (`0x1000`) | `70..179ms`, `freq < 60` | any | Low textured drag | `207_Negative` (`98ms`, `0.7ms` onset) |
+| Continuous (`0x1000`) | `dur < 70ms` | any | Short directional pull / unlock | `162_GestureBackPull` (`30.6ms`) / `210_FingerprintUnlock` (`26.4ms`) |
 
 ---
 
-## 3. System UI Multi-Texture Mapping Guidelines
+## 3. System UI Multi-Texture Mapping Guidelines (Cross-OEM Duration-Safe)
 
-Avoid collapsing all UI touch waveforms onto `0_click`:
+Never map a short framework `OplusPrebakedSegment` (e.g., `mDuration = 20ms` keyboard or `35–45ms` UI tap/switch) to a slow-onset RTP (e.g., Xiaomi `180_signalKeyHigh` has **`25.4ms` leading silence** before peak at `32.6ms`, causing `VibrationThread::off()` at `20ms` to produce **0% vibration**; `187_signalSwitch` peaks at `73.5ms` past ColorOS's `45ms` cutoff). Always choose PCM-verified instant-onset targets (`Onset <= 2.1ms`, `DurMs` fitting cleanly inside `mDuration`):
 
-| System Interaction Category | Recommended Tactile Profile | Example RTP Mapping |
+| System Interaction Category | Framework `mDuration` | Verified Instant-Onset RTP Mapping |
 | :--- | :--- | :--- |
-| Keyboard (weak / medium / strong) | Crisp, light, zero-ringing keystrokes | `181_signalKeyUnit`, `180_signalKeyHigh`, `173_signalButtonHighlight` |
-| Standard UI Button Tap | Clean crisp button click | `175_signalButton` |
-| Toggle Switch / Checkbox | Distinct mechanical snap | `187_signalSwitch` |
-| Slider / Seekbar Detent | Fine rhythmic step | `186_signalSeekbar` |
-| Wheel / Time Picker Tick | Micro-granular tick | `184_signalPicker`, `178_signalClockUnit` |
-| Overscroll / Edge Bounce | Elastic rebound | `201_BoundaryBounce`, `202_BoundaryBottom`, `203_BoundaryTop`, `70_Spring` |
-| Long Press / 3D Touch | Deep pop / firm press | `4_pop`, `410_longpress` |
-| Gesture Back Pull / Release | Directional slide cues | `162_GestureBackPull`, `163_GestureBackRelease`, `170_slidingDamping` |
-| Notifications | Diverse organic/musical textures | `51_Bubble`, `55_Clank`, `56_Crystal`, `59_Flute`, `63_Harp`, `64_IncomingMessage`, `67_NotificationXylophone` |
+| Keyboard (weak / medium / strong) | `14–20 ms` | `178_signalClockUnit` (`12.2ms`), **`181_signalKeyUnit` (`13.0ms`, `0.0ms` onset)**, `4_pop` (`15.8ms`) |
+| Standard UI Button Tap | `35 ms` | `166_feedbackNeutral` (`14.3ms`, `2.0ms` onset) |
+| Toggle Switch / Checkbox | `45 ms` | `88_launcherIconSelection` (`15.2ms`, `98Hz` deep mechanical toggle) |
+| Slider / Seekbar Detent | `15–30 ms` | `201_BoundaryBounce` (`13.3ms`), `84_uninstallDialog` (`7.6ms`) |
+| Wheel / Overscroll Micro-Tick | `30 ms` | `178_signalClockUnit` (`12.2ms`), `188_signalTab` (`25.1ms`) |
+| Boundary / Edge Collision | `30–45 ms` | `201_BoundaryBounce` (`13.3ms`), `202_BoundaryBottom` (`22.5ms`), `203_BoundaryTop` (`22.5ms`) |
+| Long Press / 3D Touch | `80–350 ms` | `4_pop` (`15.8ms`), `410_longpress` (`21.3ms`), `173_signalButtonHighlight` (`99.2ms`) |
+| Gesture Back Pull / Release | `30–110 ms` | `162_GestureBackPull` (`30.6ms`), `163_GestureBackRelease` (`23.3ms`) |
+| Notifications | `400–6000 ms` | `67_NotificationXylophone`, `60_Fresh`, `205_SuperPositive`, `167_feedbackPositive`, `164_alert`, `208_Mute` |
 
 ---
 
